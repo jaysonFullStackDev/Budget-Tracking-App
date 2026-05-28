@@ -18,6 +18,7 @@ import 'providers/connectivity_provider.dart';
 import 'utils/app_theme.dart';
 
 import 'screens/splash_screen.dart';
+import 'screens/onboarding_screen.dart';
 import 'screens/login_screen.dart';
 import 'screens/auth_screens.dart';
 import 'screens/email_verification_screen.dart';
@@ -89,6 +90,7 @@ class BudgetTrackApp extends StatelessWidget {
             initialRoute: '/',
             routes: {
               '/':               (_) => const SplashScreen(),
+              '/onboarding':     (_) => const OnboardingScreen(),
               '/login':          (_) => const LoginScreen(),
               '/signup':         (_) => const SignupScreen(),
               '/forgot-password':(_) => const ForgotPasswordScreen(),

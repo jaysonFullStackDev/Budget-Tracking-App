@@ -13,7 +13,7 @@ import '../utils/constants.dart';
 import '../widgets/common/app_widgets.dart';
 import '../widgets/common/transaction_tile.dart';
 import '../widgets/common/skeleton_loaders.dart';
-import 'add_transaction_screen.dart';
+import 'other_screens.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -76,14 +76,6 @@ class _HomeScreenState extends State<HomeScreen> {
                   const SliverToBoxAdapter(child: SizedBox(height: 100)),
                 ]),
               ),
-      ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => Navigator.push(context,
-          MaterialPageRoute(builder: (_) => const AddTransactionScreen())),
-        backgroundColor: AppTheme.primaryColor,
-        icon:  const Icon(Icons.add_rounded, color: Colors.white),
-        label: const Text('Add', style: TextStyle(
-          color: Colors.white, fontWeight: FontWeight.w600)),
       ),
     );
   }
@@ -217,8 +209,12 @@ class _HomeScreenState extends State<HomeScreen> {
               color:        Colors.white.withOpacity(0.15),
               borderRadius: BorderRadius.circular(10),
             ),
-            child: const Icon(Icons.notifications_outlined,
-              color: Colors.white, size: 22),
+            child: GestureDetector(
+              onTap: () => Navigator.push(context,
+                MaterialPageRoute(builder: (_) => const SettingsScreen())),
+              child: const Icon(Icons.person_outline_rounded,
+                color: Colors.white, size: 22),
+            ),
           ),
         ]),
         const SizedBox(height: 20),

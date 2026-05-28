@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import '../providers/auth_provider.dart';
 import '../utils/app_theme.dart';
 import '../widgets/common/app_widgets.dart';
+import '../widgets/common/password_strength.dart';
 
 class SignupScreen extends StatefulWidget {
   const SignupScreen({super.key});
@@ -18,6 +19,7 @@ class _SignupScreenState extends State<SignupScreen> {
   final _emailCtrl = TextEditingController();
   final _passCtrl  = TextEditingController();
   final _confCtrl  = TextEditingController();
+  String _password = '';
 
   @override
   void dispose() {
@@ -80,7 +82,8 @@ class _SignupScreenState extends State<SignupScreen> {
                 keyboardType: TextInputType.emailAddress,
                 validator: (v) {
                   if (v == null || v.isEmpty) return 'Email is required';
-                  if (!v.contains('@')) return 'Enter a valid email';
+                  final emailRegex = RegExp(r'^[\w\-\.]+@([\w\-]+\.)+[\w\-]{2,}$');
+                  if (!emailRegex.hasMatch(v.trim())) return 'Enter a valid email';
                   return null;
                 },
               ),
@@ -89,12 +92,14 @@ class _SignupScreenState extends State<SignupScreen> {
                 controller: _passCtrl, label: 'Password',
                 prefixIcon: Icons.lock_outline_rounded,
                 isPassword: true,
+                onChanged: (v) => setState(() => _password = v),
                 validator: (v) {
                   if (v == null || v.isEmpty) return 'Password is required';
                   if (v.length < 6) return 'At least 6 characters';
                   return null;
                 },
               ),
+              PasswordStrengthIndicator(password: _password),
               const SizedBox(height: 14),
               AppTextField(
                 controller: _confCtrl, label: 'Confirm Password',
@@ -202,7 +207,8 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                       keyboardType: TextInputType.emailAddress,
                       validator: (v) {
                         if (v == null || v.isEmpty) return 'Email is required';
-                        if (!v.contains('@')) return 'Enter a valid email';
+                        final emailRegex = RegExp(r'^[\w\-\.]+@([\w\-]+\.)+[\w\-]{2,}$');
+                        if (!emailRegex.hasMatch(v.trim())) return 'Enter a valid email';
                         return null;
                       },
                     ),
