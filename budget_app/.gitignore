@@ -44,8 +44,8 @@ app.*.map.json
 /android/app/profile
 /android/app/release
 
-# Firebase credentials — never commit to version control
-lib/firebase_options.dart
+# Firebase credentials — override via --dart-define in production
+# lib/firebase_options.dart
 android/app/google-services.json
 ios/Runner/GoogleService-Info.plist
 android/key.properties
