@@ -43,6 +43,7 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+/build/
 
 # Firebase credentials — override via --dart-define in production
 # lib/firebase_options.dart
