@@ -2,7 +2,9 @@
 // Dashboard: balance summary, budget alerts, and recent transactions.
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import '../models/transaction_model.dart';
 import '../providers/auth_provider.dart';
 import '../providers/transaction_provider.dart';
 import '../providers/budget_provider.dart';
@@ -10,6 +12,7 @@ import '../utils/app_theme.dart';
 import '../utils/constants.dart';
 import '../widgets/common/app_widgets.dart';
 import '../widgets/common/transaction_tile.dart';
+import '../widgets/common/skeleton_loaders.dart';
 import 'add_transaction_screen.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -26,15 +29,16 @@ class _HomeScreenState extends State<HomeScreen> {
     final txnP    = context.watch<TransactionProvider>();
     final budgetP = context.watch<BudgetProvider>();
     final theme   = Theme.of(context);
-    final now     = DateTime.now();
 
     return Scaffold(
       backgroundColor: theme.scaffoldBackgroundColor,
       body: SafeArea(
         child: txnP.isLoading
-            ? const Center(child: CircularProgressIndicator())
+            ? const SingleChildScrollView(child: HomeScreenSkeleton())
             : RefreshIndicator(
+                color: AppTheme.primaryColor,
                 onRefresh: () async {
+                  HapticFeedback.mediumImpact();
                   final uid = auth.userId;
                   if (uid != null) txnP.subscribeToTransactions(uid);
                 },
@@ -68,23 +72,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       ),
                     )
                   else
-                    SliverList(
-                      delegate: SliverChildBuilderDelegate(
-                        (ctx, i) {
-                          final t = txnP.recentTransactions[i];
-                          return Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 20),
-                            child: TransactionTile(
-                              transaction: t,
-                              onDelete: txnP.isDeleting(t.id)
-                                  ? null
-                                  : () => _confirmDelete(ctx, txnP, t.id),
-                            ),
-                          );
-                        },
-                        childCount: txnP.recentTransactions.length,
-                      ),
-                    ),
+                    _buildGroupedTransactions(context, txnP),
                   const SliverToBoxAdapter(child: SizedBox(height: 100)),
                 ]),
               ),
@@ -98,6 +86,97 @@ class _HomeScreenState extends State<HomeScreen> {
           color: Colors.white, fontWeight: FontWeight.w600)),
       ),
     );
+  }
+
+  /// Groups recent transactions by date label (Today, Yesterday, or formatted date)
+  Widget _buildGroupedTransactions(BuildContext context, TransactionProvider txnP) {
+    final transactions = txnP.recentTransactions;
+    final grouped = <String, List<TransactionModel>>{};
+
+    for (final t in transactions) {
+      final label = _getDateLabel(t.date);
+      grouped.putIfAbsent(label, () => []).add(t);
+    }
+
+    final widgets = <Widget>[];
+    for (final entry in grouped.entries) {
+      widgets.add(Padding(
+        padding: const EdgeInsets.fromLTRB(20, 12, 20, 6),
+        child: Text(entry.key,
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+            color: Colors.grey[500],
+            letterSpacing: 0.5,
+          )),
+      ));
+      for (final t in entry.value) {
+        widgets.add(Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20),
+          child: _buildDismissibleTile(context, txnP, t),
+        ));
+      }
+    }
+
+    return SliverList(
+      delegate: SliverChildBuilderDelegate(
+        (_, i) => widgets[i],
+        childCount: widgets.length,
+      ),
+    );
+  }
+
+  /// Swipe-to-delete transaction tile
+  Widget _buildDismissibleTile(BuildContext context, TransactionProvider txnP, TransactionModel t) {
+    return Dismissible(
+      key: Key(t.id),
+      direction: DismissDirection.endToStart,
+      confirmDismiss: (_) => _confirmDeleteSwipe(context),
+      onDismissed: (_) {
+        HapticFeedback.mediumImpact();
+        txnP.deleteTransaction(t.id);
+      },
+      background: Container(
+        margin: const EdgeInsets.only(bottom: 10),
+        decoration: BoxDecoration(
+          color: AppTheme.errorColor,
+          borderRadius: BorderRadius.circular(14),
+        ),
+        alignment: Alignment.centerRight,
+        padding: const EdgeInsets.only(right: 20),
+        child: const Icon(Icons.delete_outline_rounded, color: Colors.white),
+      ),
+      child: TransactionTile(transaction: t),
+    );
+  }
+
+  Future<bool> _confirmDeleteSwipe(BuildContext context) async {
+    return await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title:   const Text('Delete Transaction'),
+        content: const Text('This action cannot be undone.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel')),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Delete',
+              style: TextStyle(color: AppTheme.errorColor))),
+        ],
+      ),
+    ) ?? false;
+  }
+
+  String _getDateLabel(DateTime date) {
+    final now   = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final d     = DateTime(date.year, date.month, date.day);
+
+    if (d == today) return 'Today';
+    if (d == today.subtract(const Duration(days: 1))) return 'Yesterday';
+    return DateHelpers.formatDate(date);
   }
 
   Widget _buildHeader(BuildContext context, AuthProvider auth,
@@ -149,13 +228,32 @@ class _HomeScreenState extends State<HomeScreen> {
         Text(
           CurrencyFormatter.format(txnP.netBalance),
           style: const TextStyle(color: Colors.white,
-            fontSize: 30, fontWeight: FontWeight.w800),
+            fontSize: 34, fontWeight: FontWeight.w800),
         ),
+        const SizedBox(height: 10),
+        // Inline income/expense indicators
+        Row(children: [
+          _miniStat(Icons.arrow_upward_rounded, AppTheme.successColor,
+            CurrencyFormatter.format(txnP.totalIncome)),
+          const SizedBox(width: 16),
+          _miniStat(Icons.arrow_downward_rounded, const Color(0xFFFF8A80),
+            CurrencyFormatter.format(txnP.totalExpense)),
+        ]),
         const SizedBox(height: 6),
         Text(DateHelpers.formatMonth(DateTime.now()),
-          style: TextStyle(color: Colors.white.withOpacity(0.6), fontSize: 12)),
+          style: TextStyle(color: Colors.white.withOpacity(0.5), fontSize: 11)),
       ]),
     );
+  }
+
+  Widget _miniStat(IconData icon, Color color, String amount) {
+    return Row(children: [
+      Icon(icon, color: color, size: 14),
+      const SizedBox(width: 4),
+      Text(amount,
+        style: TextStyle(color: Colors.white.withOpacity(0.9),
+          fontSize: 12, fontWeight: FontWeight.w600)),
+    ]);
   }
 
   Widget _buildAlerts(BuildContext context, BudgetProvider budgetP) {
@@ -205,29 +303,6 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         ),
       ]),
-    );
-  }
-
-  void _confirmDelete(BuildContext context, TransactionProvider txnP,
-      String id) {
-    showDialog(
-      context: context,
-      builder: (_) => AlertDialog(
-        title:   const Text('Delete Transaction'),
-        content: const Text('This action cannot be undone.'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel')),
-          TextButton(
-            onPressed: () {
-              txnP.deleteTransaction(id);
-              Navigator.pop(context);
-            },
-            child: const Text('Delete',
-              style: TextStyle(color: AppTheme.errorColor))),
-        ],
-      ),
     );
   }
 }

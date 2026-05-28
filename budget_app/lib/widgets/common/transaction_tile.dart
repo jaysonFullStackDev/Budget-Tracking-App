@@ -29,6 +29,9 @@ class TransactionTile extends StatelessWidget {
       decoration: BoxDecoration(
         color:        theme.cardTheme.color,
         borderRadius: BorderRadius.circular(14),
+        border: Border(
+          left: BorderSide(color: color, width: 3.5),
+        ),
         boxShadow: [
           BoxShadow(color: Colors.black.withOpacity(0.04),
             blurRadius: 8, offset: const Offset(0, 2)),

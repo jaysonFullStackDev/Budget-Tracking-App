@@ -1,6 +1,7 @@
 // lib/screens/other_screens.dart
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:fl_chart/fl_chart.dart';
 import '../providers/auth_provider.dart';
@@ -8,12 +9,15 @@ import '../providers/transaction_provider.dart';
 import '../providers/budget_provider.dart';
 import '../providers/theme_provider.dart';
 import '../models/budget_model.dart';
+import '../models/transaction_model.dart';
 import '../services/export_service.dart';
 import '../utils/app_theme.dart';
 import '../utils/constants.dart';
 import '../widgets/common/app_widgets.dart';
 import '../widgets/common/transaction_tile.dart';
 import '../widgets/common/budget_progress_card.dart';
+import '../widgets/common/skeleton_loaders.dart';
+import '../widgets/common/success_overlay.dart';
 import '../widgets/charts/chart_widgets.dart';
 import 'add_transaction_screen.dart';
 
@@ -148,7 +152,7 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
         ),
         Expanded(
           child: txnP.isLoading
-              ? const Center(child: CircularProgressIndicator())
+              ? const SingleChildScrollView(child: TransactionListSkeleton())
               : filtered.isEmpty
                   ? const EmptyState(
                       title: 'No transactions found',
@@ -167,15 +171,7 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
                           );
                         }
                         final t = displayList[i];
-                        return TransactionTile(
-                          transaction: t,
-                          onEdit: () => Navigator.push(context,
-                            MaterialPageRoute(builder: (_) =>
-                              AddTransactionScreen(existing: t))),
-                          onDelete: txnP.isDeleting(t.id)
-                              ? null
-                              : () => _confirmDelete(context, txnP, t.id),
-                        );
+                        return _buildDismissibleTile(context, txnP, t);
                       },
                     ),
         ),
@@ -183,24 +179,53 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
     );
   }
 
-  void _confirmDelete(BuildContext context, TransactionProvider txnP, String id) {
-    showDialog(
+  Widget _buildDismissibleTile(BuildContext context, TransactionProvider txnP, TransactionModel t) {
+    return Dismissible(
+      key: Key(t.id),
+      direction: DismissDirection.endToStart,
+      confirmDismiss: (_) => _confirmDeleteSwipe(context),
+      onDismissed: (_) {
+        HapticFeedback.mediumImpact();
+        txnP.deleteTransaction(t.id);
+      },
+      background: Container(
+        margin: const EdgeInsets.only(bottom: 10),
+        decoration: BoxDecoration(
+          color: AppTheme.errorColor,
+          borderRadius: BorderRadius.circular(14),
+        ),
+        alignment: Alignment.centerRight,
+        padding: const EdgeInsets.only(right: 20),
+        child: const Icon(Icons.delete_outline_rounded, color: Colors.white),
+      ),
+      child: TransactionTile(
+        transaction: t,
+        onEdit: () => Navigator.push(context,
+          MaterialPageRoute(builder: (_) =>
+            AddTransactionScreen(existing: t))),
+      ),
+    );
+  }
+
+  Future<bool> _confirmDeleteSwipe(BuildContext context) async {
+    return await showDialog<bool>(
       context: context,
       builder: (_) => AlertDialog(
         title: const Text('Delete Transaction'),
         content: const Text('This action cannot be undone.'),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
+            onPressed: () => Navigator.pop(context, false),
             child: const Text('Cancel')),
           TextButton(
-            onPressed: () { txnP.deleteTransaction(id); Navigator.pop(context); },
+            onPressed: () => Navigator.pop(context, true),
             child: const Text('Delete',
               style: TextStyle(color: AppTheme.errorColor))),
         ],
       ),
-    );
+    ) ?? false;
   }
+
 }
 
 
@@ -223,7 +248,7 @@ class BudgetScreen extends StatelessWidget {
         elevation: 0,
       ),
       body: budgetP.isLoading
-          ? const Center(child: CircularProgressIndicator())
+          ? const SingleChildScrollView(child: BudgetCardSkeleton())
           : budgetP.budgets.isEmpty
               ? const EmptyState(
                   title: 'No budgets set',
@@ -300,14 +325,21 @@ class BudgetScreen extends StatelessWidget {
                     if (limit <= 0) return;
                     final userId = context.read<AuthProvider>().userId!;
                     final now = DateTime.now();
-                    await context.read<BudgetProvider>().setBudget(
+                    final ok = await context.read<BudgetProvider>().setBudget(
                       userId: userId,
                       category: selectedCat,
                       limit: limit,
                       month: now.month,
                       year: now.year,
                     );
-                    if (ctx.mounted) Navigator.pop(ctx);
+                    if (ctx.mounted) {
+                      Navigator.pop(ctx);
+                      if (ok) {
+                        HapticFeedback.mediumImpact();
+                        SuccessOverlay.show(ctx,
+                          message: isEdit ? 'Budget updated!' : 'Budget set!');
+                      }
+                    }
                   },
                   child: Text(isEdit ? 'Update Budget' : 'Set Budget'),
                 ),

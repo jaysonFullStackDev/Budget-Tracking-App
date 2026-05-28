@@ -2,6 +2,7 @@
 // Form screen for adding and editing transactions.
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../models/transaction_model.dart';
 import '../providers/auth_provider.dart';
@@ -10,6 +11,7 @@ import '../utils/app_theme.dart';
 import '../utils/constants.dart';
 import '../utils/input_sanitizer.dart';
 import '../widgets/common/app_widgets.dart';
+import '../widgets/common/success_overlay.dart';
 
 class AddTransactionScreen extends StatefulWidget {
   final TransactionModel? existing; // null = add mode, non-null = edit mode
@@ -115,13 +117,10 @@ class _AddTransactionScreenState extends State<AddTransactionScreen>
 
     setState(() => _isLoading = false);
     if (ok && mounted) {
-      Navigator.pop(context);
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text(_isEditMode
-            ? 'Transaction updated!' : 'Transaction added!'),
-        backgroundColor: AppTheme.successColor,
-        behavior:        SnackBarBehavior.floating,
-      ));
+      HapticFeedback.mediumImpact();
+      await SuccessOverlay.show(context,
+        message: _isEditMode ? 'Updated!' : 'Added!');
+      if (mounted) Navigator.pop(context);
     }
   }
 
