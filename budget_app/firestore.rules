@@ -1,0 +1,105 @@
+// firestore.rules
+// ────────────────────────────────────────────────────────────────────────────
+// Firebase Firestore Security Rules for BudgetTrack App.
+// Deploy with: firebase deploy --only firestore:rules
+// ────────────────────────────────────────────────────────────────────────────
+
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ── Helper Functions ───────────────────────────────────────────
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return request.auth != null && request.auth.uid == userId;
+    }
+
+    function isValidAmount(amount) {
+      return amount is number && amount > 0 && amount <= 10000000;
+    }
+
+    function isValidTransactionType(type) {
+      return type == 'income' || type == 'expense';
+    }
+
+    function isValidMonth(month) {
+      return month is int && month >= 1 && month <= 12;
+    }
+
+    function isValidYear(year) {
+      return year is int && year >= 2020 && year <= 2100;
+    }
+
+    function isValidCategory(category) {
+      return category is string
+             && category.size() > 0
+             && category.size() <= 50;
+    }
+
+    function isValidString(str, maxLen) {
+      return str is string && str.size() <= maxLen;
+    }
+
+    // ── Users Collection ───────────────────────────────────────────
+    match /users/{userId} {
+      allow read:   if isOwner(userId);
+      allow create: if isOwner(userId)
+                    && request.resource.data.keys().hasAll(['name', 'email', 'createdAt'])
+                    && isValidString(request.resource.data.name, 50)
+                    && isValidString(request.resource.data.email, 100);
+      allow update: if isOwner(userId)
+                    && !request.resource.data.diff(resource.data).affectedKeys()
+                        .hasAny(['email', 'createdAt', 'uid'])
+                    && isValidString(request.resource.data.name, 50);
+      allow delete: if false;
+    }
+
+    // ── Transactions Collection ────────────────────────────────────
+    match /transactions/{transactionId} {
+      allow read:   if isAuthenticated()
+                    && resource.data.userId == request.auth.uid;
+      allow create: if isAuthenticated()
+                    && request.resource.data.userId == request.auth.uid
+                    && isValidAmount(request.resource.data.amount)
+                    && isValidTransactionType(request.resource.data.transactionType)
+                    && isValidCategory(request.resource.data.category)
+                    && isValidString(request.resource.data.description, 200)
+                    && request.resource.data.keys().hasAll(
+                        ['userId', 'amount', 'category', 'transactionType', 'date', 'createdAt']);
+      allow update: if isAuthenticated()
+                    && resource.data.userId == request.auth.uid
+                    && request.resource.data.userId == request.auth.uid
+                    && isValidAmount(request.resource.data.amount)
+                    && isValidTransactionType(request.resource.data.transactionType)
+                    && isValidCategory(request.resource.data.category)
+                    && isValidString(request.resource.data.description, 200);
+      allow delete: if isAuthenticated()
+                    && resource.data.userId == request.auth.uid;
+    }
+
+    // ── Budgets Collection ─────────────────────────────────────────
+    match /budgets/{budgetId} {
+      allow read:   if isAuthenticated()
+                    && resource.data.userId == request.auth.uid;
+      allow create: if isAuthenticated()
+                    && request.resource.data.userId == request.auth.uid
+                    && isValidAmount(request.resource.data.budgetLimit)
+                    && isValidMonth(request.resource.data.month)
+                    && isValidYear(request.resource.data.year)
+                    && isValidCategory(request.resource.data.category)
+                    && request.resource.data.keys().hasAll(
+                        ['userId', 'category', 'budgetLimit', 'month', 'year', 'createdAt']);
+      allow update: if isAuthenticated()
+                    && resource.data.userId == request.auth.uid
+                    && isValidAmount(request.resource.data.budgetLimit)
+                    && isValidMonth(request.resource.data.month)
+                    && isValidYear(request.resource.data.year);
+      allow delete: if isAuthenticated()
+                    && resource.data.userId == request.auth.uid;
+    }
+
+  }
+}
