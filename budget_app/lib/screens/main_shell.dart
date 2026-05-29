@@ -10,6 +10,7 @@ import '../providers/budget_provider.dart';
 import '../utils/app_theme.dart';
 import '../utils/session_manager.dart';
 import '../widgets/common/offline_banner.dart';
+import '../widgets/common/floating_ai_avatar.dart';
 import 'home_screen.dart';
 import 'add_transaction_screen.dart';
 import 'other_screens.dart';
@@ -81,15 +82,20 @@ class _MainShellState extends State<MainShell> {
       onTap: () => SessionManager().recordActivity(),
       onPanDown: (_) => SessionManager().recordActivity(),
       child: Scaffold(
-        body: Column(
+        body: Stack(
           children: [
-            const OfflineBanner(),
-            Expanded(
-              child: IndexedStack(
-                index: _currentIndex == 2 ? 0 : _currentIndex,
-                children: _screens,
-              ),
+            Column(
+              children: [
+                const OfflineBanner(),
+                Expanded(
+                  child: IndexedStack(
+                    index: _currentIndex == 2 ? 0 : _currentIndex,
+                    children: _screens,
+                  ),
+                ),
+              ],
             ),
+            const FloatingAiAvatar(),
           ],
         ),
         floatingActionButton: _buildCenterFAB(),
